@@ -112,7 +112,7 @@ static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32
 {
     ESP_LOGI(TAG, "net_idx: 0x%04x, addr: 0x%04x", net_idx, addr);
     ESP_LOGI(TAG, "flags: 0x%02x, iv_index: 0x%08x", flags, iv_index);
-    board_led_operation(LED_G, LED_OFF);
+    board_led_operation(LED_B, LED_OFF);
 }
 
 static void example_change_led_state(esp_ble_mesh_model_t *model,
@@ -305,7 +305,7 @@ static esp_err_t ble_mesh_init(void)
 
     ESP_LOGI(TAG, "BLE Mesh Node initialized");
 
-    board_led_operation(LED_G, LED_ON);
+    board_led_operation(LED_B, LED_ON);
 
     return err;
 }
@@ -332,10 +332,14 @@ void app_main(void)
     }
 
     ble_mesh_get_dev_uuid(dev_uuid);
-
+    uint8_t MACd;
+    esp_efuse_mac_get_default(&MACd);
+    ESP_LOGI("TEST","MAC: %d", MACd);
+    ESP_LOGE("TEST", "test1");
     /* Initialize the Bluetooth Mesh Subsystem */
     err = ble_mesh_init();
     if (err) {
         ESP_LOGE(TAG, "Bluetooth mesh init failed (err %d)", err);
     }
+    ESP_LOGE("TEST", "test2");
 }

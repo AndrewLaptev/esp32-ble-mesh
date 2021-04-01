@@ -12,9 +12,9 @@
 #include "driver/gpio.h"
 
 #if defined(CONFIG_BLE_MESH_ESP_WROOM_32)
-#define LED_R GPIO_NUM_25
-#define LED_G GPIO_NUM_26
-#define LED_B GPIO_NUM_27
+//#define LED_R GPIO_NUM_25
+//#define LED_G GPIO_NUM_26
+#define LED_B GPIO_NUM_2
 #elif defined(CONFIG_BLE_MESH_ESP_WROVER)
 #define LED_R GPIO_NUM_0
 #define LED_G GPIO_NUM_2
