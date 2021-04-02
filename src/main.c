@@ -334,7 +334,7 @@ void app_main(void)
     ble_mesh_get_dev_uuid(dev_uuid);
     uint8_t MACd;
     esp_efuse_mac_get_default(&MACd);
-    ESP_LOGI("TEST","MAC: %d", MACd);
+    ESP_LOGI("TEST","MAC: %x", MACd);
     ESP_LOGE("TEST", "test1");
     /* Initialize the Bluetooth Mesh Subsystem */
     err = ble_mesh_init();
