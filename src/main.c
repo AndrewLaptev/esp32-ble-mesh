@@ -108,6 +108,60 @@ static esp_ble_mesh_prov_t provision = {
 #endif
 };
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                            FUNC DECLARATION                                           //
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32_t iv_index);
+static void example_change_led_state(esp_ble_mesh_model_t *model, esp_ble_mesh_msg_ctx_t *ctx, uint8_t onoff);
+static void example_handle_gen_onoff_msg(esp_ble_mesh_model_t *model, esp_ble_mesh_msg_ctx_t *ctx, esp_ble_mesh_server_recv_gen_onoff_set_t *set);
+static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event, esp_ble_mesh_prov_cb_param_t *param);
+static void example_ble_mesh_generic_server_cb(esp_ble_mesh_generic_server_cb_event_t event, esp_ble_mesh_generic_server_cb_param_t *param);
+static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t event, esp_ble_mesh_cfg_server_cb_param_t *param);
+static esp_err_t ble_mesh_init(void);
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                                  MAIN                                                 //
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void app_main(void)
+{
+    esp_err_t err;
+
+    ESP_LOGI(TAG, "Initializing...");
+
+    board_init();
+
+    err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(err);
+
+    err = bluetooth_init();
+    if (err) {
+        ESP_LOGE(TAG, "esp32_bluetooth_init failed (err %d)", err);
+        return;
+    }
+
+    ble_mesh_get_dev_uuid(dev_uuid);
+
+    uint8_t MACd[6];
+    esp_efuse_mac_get_default(&MACd);
+    ESP_LOGI("TEST","MAC: %x:%x:%x:%x:%x:%x", MACd[0],MACd[1],MACd[2],MACd[3],MACd[4],MACd[5]);
+    
+    /* Initialize the Bluetooth Mesh Subsystem */
+    err = ble_mesh_init();
+    if (err) {
+        ESP_LOGE(TAG, "Bluetooth mesh init failed (err %d)", err);
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                            FUNC DEFINITION                                            //
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32_t iv_index)
 {
     ESP_LOGI(TAG, "net_idx: 0x%04x, addr: 0x%04x", net_idx, addr);
@@ -308,38 +362,4 @@ static esp_err_t ble_mesh_init(void)
     board_led_operation(LED_B, LED_ON);
 
     return err;
-}
-
-void app_main(void)
-{
-    esp_err_t err;
-
-    ESP_LOGI(TAG, "Initializing...");
-
-    board_init();
-
-    err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        err = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(err);
-
-    err = bluetooth_init();
-    if (err) {
-        ESP_LOGE(TAG, "esp32_bluetooth_init failed (err %d)", err);
-        return;
-    }
-
-    ble_mesh_get_dev_uuid(dev_uuid);
-
-    uint8_t MACd[6];
-    esp_efuse_mac_get_default(&MACd);
-    ESP_LOGI("TEST","MAC: %x:%x:%x:%x:%x:%x", MACd[0],MACd[1],MACd[2],MACd[3],MACd[4],MACd[5]);
-    
-    /* Initialize the Bluetooth Mesh Subsystem */
-    err = ble_mesh_init();
-    if (err) {
-        ESP_LOGE(TAG, "Bluetooth mesh init failed (err %d)", err);
-    }
 }
