@@ -146,10 +146,7 @@ void app_main(void)
     }
 
     ble_mesh_get_dev_uuid(dev_uuid);
-
-    uint8_t MACd[6];
-    esp_efuse_mac_get_default(&MACd);
-    ESP_LOGI("TEST","MAC: %x:%x:%x:%x:%x:%x", MACd[0],MACd[1],MACd[2],MACd[3],MACd[4],MACd[5]);
+    ESP_LOGI("TEST","BT_MAC: %x:%x:%x:%x:%x:%x", dev_uuid[2],dev_uuid[3],dev_uuid[4],dev_uuid[5],dev_uuid[6],dev_uuid[7]);
     
     /* Initialize the Bluetooth Mesh Subsystem */
     err = ble_mesh_init();
