@@ -28,7 +28,7 @@
 
 #define CID_ESP 0x02E5
 
-extern struct _led_state led_state[3];
+extern struct _led_state led_state[SIZE_LED_STATE_AR];
 
 static uint8_t dev_uuid[16] = { 0xdd, 0xdd };
 

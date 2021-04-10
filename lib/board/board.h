@@ -24,6 +24,8 @@
 #define LED_ON  1
 #define LED_OFF 0
 
+#define SIZE_LED_STATE_AR 1
+
 struct _led_state {
     uint8_t current;
     uint8_t previous;
