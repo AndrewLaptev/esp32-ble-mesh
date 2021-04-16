@@ -20,6 +20,8 @@
 #include "esp_ble_mesh_config_model_api.h"
 #include "esp_ble_mesh_generic_model_api.h"
 #include "esp_ble_mesh_local_data_operation_api.h"
+#include "esp_gap_ble_api.h"
+#include "freertos/task.h"
 
 #include "board.h"
 #include "ble_mesh_example_init.h"
@@ -27,6 +29,7 @@
 #define TAG "EXAMPLE"
 
 #define CID_ESP 0x02E5
+#define SIZE_RSSI_ARRAY 10
 
 extern struct _led_state led_state[SIZE_LED_STATE_AR];
 
@@ -108,6 +111,16 @@ static esp_ble_mesh_prov_t provision = {
 #endif
 };
 
+static esp_ble_scan_params_t scan_params = {
+    .scan_type              = BLE_SCAN_TYPE_PASSIVE,
+	.own_addr_type          = BLE_ADDR_TYPE_PUBLIC,
+	.scan_filter_policy     = BLE_SCAN_FILTER_ALLOW_ALL,
+	.scan_interval          = 0x50,
+	.scan_window            = 0x30
+};
+
+int rssi_array[SIZE_RSSI_ARRAY];
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                            FUNC DECLARATION                                           //
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -119,6 +132,8 @@ static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
 static void example_ble_mesh_generic_server_cb(esp_ble_mesh_generic_server_cb_event_t event, esp_ble_mesh_generic_server_cb_param_t *param);
 static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t event, esp_ble_mesh_cfg_server_cb_param_t *param);
 static esp_err_t ble_mesh_init(void);
+static void rssi_check_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
+static void put(int *array, short int array_lengh, int elem);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                                  MAIN                                                 //
@@ -144,6 +159,20 @@ void app_main(void)
         ESP_LOGE(TAG, "esp32_bluetooth_init failed (err %d)", err);
         return;
     }
+
+
+    esp_ble_gap_register_callback(rssi_check_cb);
+
+    err = esp_ble_gap_set_scan_params(&scan_params);
+    if(err != ESP_OK){
+        ESP_LOGE("TEST", "esp_ble_gap_set_scan_params: rc=%d", err);
+    }
+
+    err = esp_ble_gap_start_scanning(0);
+    if(err != ESP_OK){
+        ESP_LOGE("TEST", "esp_ble_gap_start_scanning: rc=%d", err);
+    }
+
 
     ble_mesh_get_dev_uuid(dev_uuid);
     ESP_LOGI("TEST","BT_MAC: %x:%x:%x:%x:%x:%x", dev_uuid[2],dev_uuid[3],dev_uuid[4],dev_uuid[5],dev_uuid[6],dev_uuid[7]);
@@ -215,8 +244,6 @@ static void example_handle_gen_onoff_msg(esp_ble_mesh_model_t *model,
             esp_ble_mesh_server_model_send_msg(model, ctx,
                 ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_STATUS, sizeof(srv->state.onoff), &srv->state.onoff);
         }
-        esp_ble_mesh_model_publish(model, ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_STATUS,
-            sizeof(srv->state.onoff), &srv->state.onoff, ROLE_NODE);
         example_change_led_state(model, ctx, srv->state.onoff);
         break;
     default:
@@ -359,4 +386,47 @@ static esp_err_t ble_mesh_init(void)
     board_led_operation(LED_B, LED_ON);
 
     return err;
+}
+
+static void rssi_check_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param){
+    if(param -> scan_rst.search_evt == ESP_GAP_SEARCH_INQ_RES_EVT){
+        ESP_LOGI("TEST","UUID: %02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x, MAC: %02x:%02x:%02x:%02x:%02x:%02x, RSSI %d",
+            param->scan_rst.ble_adv[6],
+            param->scan_rst.ble_adv[7],
+            param->scan_rst.ble_adv[8],
+            param->scan_rst.ble_adv[9],
+            param->scan_rst.ble_adv[10],
+            param->scan_rst.ble_adv[11],
+            param->scan_rst.ble_adv[12],
+            param->scan_rst.ble_adv[13],
+            param->scan_rst.ble_adv[14],
+            param->scan_rst.ble_adv[15],
+            param->scan_rst.ble_adv[16],
+            param->scan_rst.ble_adv[17],
+            param->scan_rst.ble_adv[18],
+            param->scan_rst.ble_adv[19],
+            param->scan_rst.ble_adv[20],
+            param->scan_rst.ble_adv[21],
+			param->scan_rst.bda[0], 
+			param->scan_rst.bda[1],
+			param->scan_rst.bda[2], 
+			param->scan_rst.bda[3], 
+			param->scan_rst.bda[4],
+			param->scan_rst.bda[5],
+			param->scan_rst.rssi);
+        put(rssi_array, SIZE_RSSI_ARRAY, param->scan_rst.rssi);
+    } else {
+        ESP_LOGE("TEST","RSSI not read!");
+    }
+}
+
+static void put(int *array, short int array_lengh, int elem){
+    for(short int i = 0; i < array_lengh; i++){
+        if(*array == 0){
+            *array = elem;
+            return;
+        }else{
+            array++;
+        }
+    }
 }
