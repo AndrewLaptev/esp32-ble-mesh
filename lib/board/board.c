@@ -17,26 +17,25 @@
 
 struct _led_state led_state[SIZE_LED_STATE_AR] = {{ LED_OFF, LED_OFF, LED_B, "blue" }};
 
-void board_led_operation(uint8_t pin, uint8_t onoff)
-{
+void board_led_operation(uint8_t pin, uint8_t onoff){
     for (uint8_t i = 0; i < SIZE_LED_STATE_AR; i++) {
         if (led_state[i].pin != pin) {
             continue;
         }
-        if (onoff == led_state[i].previous) {
+        if (onoff == led_state[i].current) {
             ESP_LOGW(TAG, "led %s is already %s",
                      led_state[i].name, (onoff ? "on" : "off"));
             return;
         }
         gpio_set_level(pin, onoff);
-        led_state[i].previous = onoff;
+        led_state[i].previous = led_state[i].current;
+        led_state[i].current = onoff;
         return;
     }
     ESP_LOGE(TAG, "LED is not found!");
 }
 
-static void board_led_init(void)
-{
+static void board_led_init(void){
     for(uint8_t i = 0; i < SIZE_LED_STATE_AR; i++){
         gpio_pad_select_gpio(led_state[i].pin);
         gpio_set_direction(led_state[i].pin, GPIO_MODE_OUTPUT);
