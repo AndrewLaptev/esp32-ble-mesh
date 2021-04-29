@@ -11,6 +11,7 @@
 #include "esp_ble_mesh_local_data_operation_api.h"
 
 #define CID_ESP 0x02E5
+#define TAG "BLE-MESH"
 
 static uint8_t dev_uuid[16];
 

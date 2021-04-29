@@ -14,9 +14,8 @@
 #include "rssi_calc.h"
 
 #define SIZE_RSSI_ARRAY 10
-#define TAG "EXAMPLE"
 
-int blink_pwm = LEDC_PWM_LEVEL_DEF;
+int rssi_mean;
 
 uint8_t ble_addr[16] = {127,42,198,70,155,141,73,148,158,162,131,135,46,55,63,158};
 
@@ -33,6 +32,7 @@ static esp_ble_scan_params_t scan_params = {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 static void rssi_check_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
+void TaskRssiFadePwm(void *pvPatameters);
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                                  MAIN                                                 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +91,6 @@ void app_main(void)
 
 static void rssi_check_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param){
     short int uuid_compare_numb = 0;
-    int rssi_mean;
     static int rssi_array[SIZE_RSSI_ARRAY];
     
     for(short int i = 0; i < 16; i++){
@@ -125,12 +124,12 @@ static void rssi_check_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *
 			param->scan_rst.bda[4],
 			param->scan_rst.bda[5],
 			param->scan_rst.rssi
-        );
+            );
+            ESP_LOGI("TEST","PDU-lengh:%d",param->scan_rst.adv_data_len);
+
             if(rssi_array_el_put(rssi_array, SIZE_RSSI_ARRAY, param->scan_rst.rssi) == 1){
                 rssi_mean = rssi_mean_calculate(rssi_array, SIZE_RSSI_ARRAY);
                 ESP_LOGI("TEST","RSSI_MEAN: %d", rssi_mean);
-                blink_pwm = 7990 - (int)(roundf((float)(abs(rssi_mean) - 25) * 121));
-                ESP_LOGI("TEST", "blink_pwm: %d", blink_pwm);
             }
         }
     }else{
@@ -140,7 +139,8 @@ static void rssi_check_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *
 
 void TaskRssiFadePwm(void *pvPatameters){
     while(1){
-        rssi_fade_pwm_modes(0, &blink_pwm);
+        //rssi_fade_pwm_modes(0, &blink_pwm);
+        rssi_fade_pwm_onoff(0, &rssi_mean);
         vTaskDelay(10/portTICK_PERIOD_MS);
     }
 }
