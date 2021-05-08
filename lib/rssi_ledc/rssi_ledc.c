@@ -66,7 +66,7 @@ void rssi_fade_pwm_modes(short int channel_num, int *rssi_mean){
 }
 
 void rssi_fade_pwm_onoff(short int channel_num, int *rssi_mean){
-    static short int onoff = 0;
+    static short int onoff = 1;
     if(*rssi_mean >= -50 && onoff == 0){
         ledc_set_fade_with_time(ledc_channel[channel_num].speed_mode,
                 ledc_channel[channel_num].channel, 8191, LEDC_PWM_DELAY_FADE);
