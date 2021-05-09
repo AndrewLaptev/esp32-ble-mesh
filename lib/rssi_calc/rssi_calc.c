@@ -1,4 +1,5 @@
 #include "rssi_calc.h"
+#include "esp_log.h"
 
 void rssi_anomaly_correct(int *array, short int array_lengh, short int elem_ind){    
     short int prev_el = elem_ind - 1;
@@ -10,7 +11,7 @@ void rssi_anomaly_correct(int *array, short int array_lengh, short int elem_ind)
     if(next_el == array_lengh){
         next_el = 0;
     }
-    if(array[elem_ind] >= (array[prev_el] + (int)((double)array[prev_el] * 0.2)) && array[elem_ind] > (array[next_el] + (int)((double)array[next_el] * 0.2))){
+    if(array[elem_ind] <= (array[prev_el] + (int)((double)array[prev_el] * 0.1)) && array[elem_ind] <= (array[next_el] + (int)((double)array[next_el] * 0.1))){
         array[elem_ind] = (int)((double)(array[prev_el] + array[next_el]) / 2);
     }
 }
@@ -27,28 +28,23 @@ void rssi_smooth(int *array, short int array_lengh, short int elem_ind){
 
 bool rssi_array_el_put(int *array, short int array_lengh, int elem, int *first_elem_ptr){
     static short int i = 0;
-    static short int i1 = -1;
-    static short int i2 = -2;
-    static bool arr_vol = 0;
+    static short int i1 = -2;
+    static int arr_vol = 0;
 
-    array = array + i;
-    *array = elem;
     if(arr_vol == 1){
-        *first_elem_ptr = i;
+        *first_elem_ptr = array[i];
     }
+    *(array + i) = elem;
     i++;
     i1++;
-    i2++;
     if(arr_vol == 0){
-        if(i >= 2){
-            rssi_anomaly_correct(array,array_lengh,i1);
-        }
         if(i >= 3){
-            rssi_smooth(array,array_lengh,i2);
+            rssi_anomaly_correct(array,array_lengh,i1);
+            rssi_smooth(array,array_lengh,i1);
         }
     }else{
         rssi_anomaly_correct(array,array_lengh,i1);
-        rssi_smooth(array,array_lengh,i2);
+        rssi_smooth(array,array_lengh,i1);
     }
     if(i == array_lengh){
         i = 0;
@@ -56,9 +52,6 @@ bool rssi_array_el_put(int *array, short int array_lengh, int elem, int *first_e
     }
     if(i1 == array_lengh){
         i1 = 0;
-    }
-    if(i2 == array_lengh){
-        i2 = 0;
     }
     return arr_vol;
 }
