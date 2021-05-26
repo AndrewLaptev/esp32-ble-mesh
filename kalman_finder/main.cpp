@@ -2,6 +2,50 @@
 #include <math.h>
 #include "Kalman.h"
 
+#define FILENAME "rssi_1_5m.txt"
+#define RSSI_IDEAL -68
+#define RSSI_FILTERING_INIT -71 // equal 2 meters
+#define QKF 0.003                 //
+#define RKF 3                     // for Kalman_filter()
+#define PKF 4                     //
+
+struct coeff_finder_initial_params{
+    float Qmin = 0.003;
+    float Rmin = 1;
+    float Pmin = 1;
+    float Qmax = 3;
+    float Rmax = 40;
+    float Pmax = 4;
+    float Qstep = 0.01;
+    float Rstep = 1;
+    float Pstep = 1;
+}init_params;
+
+struct opt_filter_params{
+    float Q;
+    float R;
+    float P;
+}optparams;
+
+///////////////////////////////////////DECLARATION////////////////////////////////////////////
+
+int count_row_file(const char* filename);
+void read_num_to_arr(const char* filename, int *rssi_arr_ext, int arr_size);
+float mean_rssi(int *rssi_arr, int arr_size);
+float variance_rssi(int *rssi_arr, int arr_size, float rssi_mean);
+void Kalman_coeff_finder(const char *filename, float rssi_ideal, int filtering_init_rssi, coeff_finder_initial_params *init_params, opt_filter_params *optparams);
+void Kalman_filter(const char *filename, int filtering_init_rssi, float Q, float R, float P);
+
+///////////////////////////////////////////MAIN///////////////////////////////////////////////
+
+int main(){
+    Kalman_coeff_finder(FILENAME, RSSI_IDEAL, RSSI_FILTERING_INIT, &init_params, &optparams);
+    //Kalman_filter(FILENAME, RSSI_FILTERING_INIT, QKF, RKF, PKF);
+    return 0;
+}
+
+/////////////////////////////////////////DEFINTION////////////////////////////////////////////
+
 int count_row_file(const char* filename){
     FILE *ptr_file;
     int count_row = 0;
@@ -51,18 +95,14 @@ float variance_rssi(int *rssi_arr, int arr_size, float rssi_mean){
     return rssi_var/(arr_size - 1);
 }
 
-#define FILENAME "rssi_1_5m.txt"
-#define RSSI_IDEAL -68
-
-int main(){
-    int arr_size = count_row_file(FILENAME);
+void Kalman_coeff_finder(const char *filename, float rssi_ideal, int filtering_init_rssi, coeff_finder_initial_params *init_params, opt_filter_params *optparams){
+    int arr_size = count_row_file(filename);
     int rssi_arr[arr_size];
-    read_num_to_arr(FILENAME, rssi_arr, arr_size);
+    read_num_to_arr(filename, rssi_arr, arr_size);
 
     float rssi_mean = mean_rssi(rssi_arr, arr_size);
     float rssi_variance = variance_rssi(rssi_arr, arr_size, rssi_mean);
     float rssi_stdev = sqrt(rssi_variance);
-    float rssi_ideal = RSSI_IDEAL;
 
     float rssi_mean_abs_err = abs(rssi_ideal - rssi_mean);
     float rssi_mean_rel_err = abs((rssi_mean_abs_err/rssi_ideal) * 100);
@@ -78,30 +118,15 @@ int main(){
     float min_filt_rssi_mean_abs_err = rssi_mean_abs_err;
     float min_rssi_mean_dist = abs(rssi_ideal/10);
 
-    float Qmin = 0.003;
-    float Rmin = 1;
-    float Pmin = 1;
-    float Qmax = 3;
-    float Rmax = 40;
-    float Pmax = 4;
-    float Qstep = 0.01;
-    float Rstep = 1;
-    float Pstep = 1;
-    float Q = Qmin;
-    float R = Rmin;
-    float P = Pmin;
-
-    struct filter_params{
-        float Q;
-        float R;
-        float P;
-    }optparams;
+    float Q = init_params->Qmin;
+    float R = init_params->Rmin;
+    float P = init_params->Pmin;
 
     printf("Calculate...\n");
-    for(int i = 0; i <= (Pmax/Pstep) - (Pmin/Pstep); i++){
-        for(int i = 0; i <= (Rmax/Rstep) - (Rmin/Rstep); i++){
-            for(int i = 0; i <= (Qmax/Qstep) - (Qmin/Qstep); i++){
-                Kalman filter1(Q,R,P,-71); // -71 because controller start detect beacon with 2 meters
+    for(int i = 0; i <= (init_params->Pmax/init_params->Pstep) - (init_params->Pmin/init_params->Pstep); i++){
+        for(int i = 0; i <= (init_params->Rmax/init_params->Rstep) - (init_params->Rmin/init_params->Rstep); i++){
+            for(int i = 0; i <= (init_params->Qmax/init_params->Qstep) - (init_params->Qmin/init_params->Qstep); i++){
+                Kalman filter1(Q, R, P, filtering_init_rssi); // -71 because controller start detect beacon with 2 meters
                 for(int i = 0; i < arr_size; i++){
                     filt_rssi_arr[i] = filter1.getFilteredValue(rssi_arr[i]);
                 }
@@ -116,23 +141,23 @@ int main(){
                     min_rssi_mean_dist = rssi_mean_dist;
                     min_filt_rssi_variance = filt_rssi_variance;
                     min_filt_rssi_mean_abs_err = filt_rssi_mean_abs_err;
-                    optparams.Q = Q;
-                    optparams.R = R;
-                    optparams.P = P;
+                    optparams->Q = Q;
+                    optparams->R = R;
+                    optparams->P = P;
                     for(int i = 0; i < arr_size; i++){
                         opt_filt_rssi_arr[i] = filt_rssi_arr[i];
                     }
                 }
                 //printf("Q:%f\n",Q);
-                Q += Qstep;
+                Q += init_params->Qstep;
             }
             //printf("R:%f\n",R);
-            Q = Qmin;
-            R += Rstep;
+            Q = init_params->Qmin;
+            R += init_params->Rstep;
         }
         //printf("P:%f\n",P);
-        R = Rmin;
-        P += Pstep;
+        R = init_params->Rmin;
+        P += init_params->Pstep;
     }
     printf("OPT_FILT_RSSI_ARR:\n");
     for(int i = 0; i < arr_size; i++){
@@ -151,8 +176,18 @@ int main(){
     printf("OPT_STDEV: %f\n", sqrt(min_filt_rssi_variance));
     printf("OPT_MEAN_ABS_ERR: %f\n", min_filt_rssi_mean_abs_err);
     printf("OPT_MEAN_REL_ERR: %f\n", abs((min_filt_rssi_mean_abs_err/rssi_ideal) * 100));
-    printf("Q: %f\n", optparams.Q);
-    printf("R: %f\n", optparams.R);
-    printf("P: %f\n", optparams.P);
-    return 0;
+    printf("Q: %f\n", optparams->Q);
+    printf("R: %f\n", optparams->R);
+    printf("P: %f\n", optparams->P);
+}
+
+void Kalman_filter(const char *filename, int filtering_init_rssi, float Q, float R, float P){
+    int arr_size = count_row_file(filename);
+    int rssi_arr[arr_size];
+    read_num_to_arr(filename, rssi_arr, arr_size);
+    Kalman filter(Q, R, P, filtering_init_rssi);
+
+    for(int i = 0; i < arr_size; i++){
+        printf("RSSI:%d\n", (int)round(filter.getFilteredValue(rssi_arr[i])));
+    }
 }
