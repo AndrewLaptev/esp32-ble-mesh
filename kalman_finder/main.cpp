@@ -2,20 +2,24 @@
 #include <math.h>
 #include "Kalman.h"
 
-#define FILENAME "rssi_1_5m.txt"
-#define RSSI_IDEAL -68
-#define RSSI_FILTERING_INIT -71 // equal 2 meters
-#define QKF 0.003                 //
-#define RKF 3                     // for Kalman_filter()
-#define PKF 4                     //
+#define FILENAME1 "rssi_1m.txt"
+#define FILENAME1_5 "rssi_1_5m.txt"
+#define FILENAME2 "rssi_2m.txt"
+#define RSSI_IDEAL1 -64.5
+#define RSSI_IDEAL1_5 -68
+#define RSSI_IDEAL2 -71
+#define RSSI_FILTERING_INIT -71           // equal 2 meters
+#define QKF 0.006967                      //
+#define RKF 94.666664                     // for Kalman_filter()
+#define PKF 21.333334                     //
 
 struct coeff_finder_initial_params{
-    float Qmin = 0.003;
+    float Qmin = 0.0003;
     float Rmin = 1;
     float Pmin = 1;
     float Qmax = 3;
-    float Rmax = 40;
-    float Pmax = 4;
+    float Rmax = 100;
+    float Pmax = 40;
     float Qstep = 0.01;
     float Rstep = 1;
     float Pstep = 1;
@@ -25,7 +29,7 @@ struct opt_filter_params{
     float Q;
     float R;
     float P;
-}optparams;
+};
 
 ///////////////////////////////////////DECLARATION////////////////////////////////////////////
 
@@ -35,12 +39,15 @@ float mean_rssi(int *rssi_arr, int arr_size);
 float variance_rssi(int *rssi_arr, int arr_size, float rssi_mean);
 void Kalman_coeff_finder(const char *filename, float rssi_ideal, int filtering_init_rssi, coeff_finder_initial_params *init_params, opt_filter_params *optparams);
 void Kalman_filter(const char *filename, int filtering_init_rssi, float Q, float R, float P);
+void Kalman_mean_coeff_finder(void);
 
 ///////////////////////////////////////////MAIN///////////////////////////////////////////////
 
 int main(){
-    Kalman_coeff_finder(FILENAME, RSSI_IDEAL, RSSI_FILTERING_INIT, &init_params, &optparams);
-    //Kalman_filter(FILENAME, RSSI_FILTERING_INIT, QKF, RKF, PKF);
+    opt_filter_params optparams_1m;
+    Kalman_coeff_finder(FILENAME1, RSSI_IDEAL1, RSSI_FILTERING_INIT, &init_params, &optparams_1m);
+    //Kalman_mean_coeff_finder();
+    //Kalman_filter(FILENAME1_5, RSSI_FILTERING_INIT, QKF, RKF, PKF);
     return 0;
 }
 
@@ -109,14 +116,12 @@ void Kalman_coeff_finder(const char *filename, float rssi_ideal, int filtering_i
 
     int filt_rssi_arr[arr_size];
     float filt_rssi_mean;
-    float rssi_mean_dist; // distance between rssi_ideal and filt_rssi_mean (low -> best)
     float filt_rssi_variance;
     float filt_rssi_mean_abs_err;
     int opt_filt_rssi_arr[arr_size];
     float min_filt_rssi_mean = rssi_mean;
     float min_filt_rssi_variance = rssi_variance;
     float min_filt_rssi_mean_abs_err = rssi_mean_abs_err;
-    float min_rssi_mean_dist = abs(rssi_ideal/10);
 
     float Q = init_params->Qmin;
     float R = init_params->Rmin;
@@ -126,19 +131,17 @@ void Kalman_coeff_finder(const char *filename, float rssi_ideal, int filtering_i
     for(int i = 0; i <= (init_params->Pmax/init_params->Pstep) - (init_params->Pmin/init_params->Pstep); i++){
         for(int i = 0; i <= (init_params->Rmax/init_params->Rstep) - (init_params->Rmin/init_params->Rstep); i++){
             for(int i = 0; i <= (init_params->Qmax/init_params->Qstep) - (init_params->Qmin/init_params->Qstep); i++){
-                Kalman filter1(Q, R, P, filtering_init_rssi); // -71 because controller start detect beacon with 2 meters
+                Kalman filter1(Q, R, P, filtering_init_rssi);
                 for(int i = 0; i < arr_size; i++){
-                    filt_rssi_arr[i] = filter1.getFilteredValue(rssi_arr[i]);
+                    filt_rssi_arr[i] = (int)round(filter1.getFilteredValue(rssi_arr[i]));
                 }
                 filt_rssi_mean = mean_rssi(filt_rssi_arr, arr_size);
-                rssi_mean_dist = abs(filt_rssi_mean - rssi_ideal);
                 filt_rssi_variance = variance_rssi(filt_rssi_arr, arr_size, filt_rssi_mean);
                 filt_rssi_mean_abs_err = abs(rssi_ideal - filt_rssi_mean);
                 //printf("M:%f, V:%f, E:%f\n", filt_rssi_mean, filt_rssi_variance, filt_rssi_mean_abs_err);
 
-                if(rssi_mean_dist < min_rssi_mean_dist && filt_rssi_variance < min_filt_rssi_variance && filt_rssi_mean_abs_err < min_filt_rssi_mean_abs_err){
+                if(filt_rssi_variance < min_filt_rssi_variance && filt_rssi_mean_abs_err < min_filt_rssi_mean_abs_err){
                     min_filt_rssi_mean = filt_rssi_mean;
-                    min_rssi_mean_dist = rssi_mean_dist;
                     min_filt_rssi_variance = filt_rssi_variance;
                     min_filt_rssi_mean_abs_err = filt_rssi_mean_abs_err;
                     optparams->Q = Q;
@@ -159,10 +162,10 @@ void Kalman_coeff_finder(const char *filename, float rssi_ideal, int filtering_i
         R = init_params->Rmin;
         P += init_params->Pstep;
     }
-    printf("OPT_FILT_RSSI_ARR:\n");
+    /*printf("OPT_FILT_RSSI_ARR:\n");
     for(int i = 0; i < arr_size; i++){
         printf("RSSI:%d\n", opt_filt_rssi_arr[i]);
-    }
+    }*/
     printf("IDEAL:%f\n", rssi_ideal);
     printf("MEAN:%f\n", rssi_mean);
     printf("VAR:%f\n", rssi_variance);
@@ -190,4 +193,25 @@ void Kalman_filter(const char *filename, int filtering_init_rssi, float Q, float
     for(int i = 0; i < arr_size; i++){
         printf("RSSI:%d\n", (int)round(filter.getFilteredValue(rssi_arr[i])));
     }
+}
+
+void Kalman_mean_coeff_finder(void){
+    opt_filter_params optparams_1m;
+    opt_filter_params optparams_1_5m;
+    opt_filter_params optparams_2m;
+    printf("1 meter\n");
+    Kalman_coeff_finder(FILENAME1, RSSI_IDEAL1, RSSI_FILTERING_INIT, &init_params, &optparams_1m);
+    printf("+++++++++++++++++++++++++++++++++++++++++++\n");
+    printf("1.5 meter\n");
+    Kalman_coeff_finder(FILENAME1_5, RSSI_IDEAL1_5, RSSI_FILTERING_INIT, &init_params, &optparams_1_5m);
+    printf("+++++++++++++++++++++++++++++++++++++++++++\n");
+    printf("2 meter\n");
+    Kalman_coeff_finder(FILENAME2, RSSI_IDEAL2, RSSI_FILTERING_INIT, &init_params, &optparams_2m);
+    printf("+++++++++++++++++++++++++++++++++++++++++++\n");
+    float Qmean = (optparams_1m.Q + optparams_1_5m.Q + optparams_2m.Q)/3;
+    float Rmean = (optparams_1m.R + optparams_1_5m.R + optparams_2m.R)/3;
+    float Pmean = (optparams_1m.P + optparams_1_5m.P + optparams_2m.P)/3;
+    printf("Q_MEAN: %f\n", Qmean);
+    printf("R_MEAN: %f\n", Rmean);
+    printf("P_MEAN: %f\n", Pmean);
 }
