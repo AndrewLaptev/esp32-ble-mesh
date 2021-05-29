@@ -144,9 +144,7 @@ void Kalman_coeff_finder(const char *filename, float rssi_ideal, int filtering_i
     for(int i = 0; i <= (init_params->Pmax/init_params->Pstep) - (init_params->Pmin/init_params->Pstep); i++){
         for(int i = 0; i <= (init_params->Rmax/init_params->Rstep) - (init_params->Rmin/init_params->Rstep); i++){
             for(int i = 0; i <= (init_params->Qmax/init_params->Qstep) - (init_params->Qmin/init_params->Qstep); i++){
-                //Kalman filter1(Q, R, P, filtering_init_rssi);
                 for(int i = 0; i < arr_size; i++){
-                    //filt_rssi_arr[i] = (int)round(filter1.getFilteredValue(rssi_arr[i]));
                     filt_rssi_arr[i] = (int)round(Kalman(Q, R, P, RSSI_FILTERING_INIT, rssi_arr[i]));
                 }
                 filt_rssi_mean = mean_rssi(filt_rssi_arr, arr_size);
@@ -202,10 +200,8 @@ void Kalman_filter(const char *filename, int filtering_init_rssi, float Q, float
     int arr_size = count_row_file(filename);
     int rssi_arr[arr_size];
     read_num_to_arr(filename, rssi_arr, arr_size);
-    //Kalman filter(Q, R, P, filtering_init_rssi);
 
     for(int i = 0; i < arr_size; i++){
-        //printf("%d\n", (int)round(filter.getFilteredValue(rssi_arr[i])));
         printf("%d\n", (int)round(Kalman(Q, R, P, RSSI_FILTERING_INIT, rssi_arr[i])));
     }
 }
@@ -232,24 +228,6 @@ void Kalman_mean_coeff_finder(void){
 }
 
 double Kalman(double process_noise, double sensor_noise, double estimated_error, double initial_value, double measurement){
-    /* The variables are x for the filtered value, q for the process noise, 
-         r for the sensor noise, p for the estimated error and k for the Kalman Gain. 
-         The state of the filter is defined by the values of these variables.
-         
-         The initial values for p is not very important since it is adjusted
-         during the process. It must be just high enough to narrow down.
-         The initial value for the readout is also not very important, since
-         it is updated during the process.
-         But tweaking the values for the process noise and sensor noise
-         is essential to get clear readouts.
-         
-         For large noise reduction, you can try to start from: (see http://interactive-matter.eu/blog/2009/12/18/filtering-sensor-data-with-a-kalman-filter/ )
-         q = 0.125
-         r = 32
-         p = 1023 //"large enough to narrow down"
-         e.g.
-         myVar = Kalman(0.125,32,1023,0);
-    */
     double q = process_noise;
     double r = sensor_noise;
     double static p = 0; // estimated_error
