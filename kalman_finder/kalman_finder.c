@@ -5,7 +5,6 @@
 #define FILENAME1_5 "rssi_1_5m.txt"
 #define FILENAME2 "rssi_2m.txt"
 #define FILENAME_EX "rssi_experiment.txt"
-#define FILENAME_EX_BP "rssi_exp_bandpass.txt"
 #define RSSI_IDEAL1 -64.5
 #define RSSI_IDEAL1_5 -68
 #define RSSI_IDEAL2 -71
