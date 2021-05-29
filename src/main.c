@@ -12,12 +12,22 @@
 #include "ble_mesh.h"
 #include "rssi_ledc.h"
 #include "rssi_calc.h"
+#include "adapt_bandpass_filter.h"
+#include "kalman_filter.h"
 
-#define SIZE_RSSI_ARRAY 10
+// parameters for adapt_bandpass_filter():
+#define WIND_SIZE 5
+#define A 0.015
+#define B 0.013
 
-int rssi_mean;
+// parameters for kalman_filter():
+#define Q 0.2624915     // process_noise
+#define R 68.749999     // sensor_noise
+#define P 20.08333375   // estimated_error
+#define INIT_RSSI -71
 
 uint8_t ble_addr[16] = {127,42,198,70,155,141,73,148,158,162,131,135,46,55,63,158};
+int rssi_filtered;
 
 static esp_ble_scan_params_t scan_params = {
     .scan_type              = BLE_SCAN_TYPE_PASSIVE,
@@ -33,6 +43,7 @@ static esp_ble_scan_params_t scan_params = {
 
 static void rssi_check_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 void TaskRssiFadePwm(void *pvPatameters);
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                                  MAIN                                                 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +102,9 @@ void app_main(void)
 
 static void rssi_check_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param){
     short int uuid_compare_numb = 0;
-    static int rssi_array[SIZE_RSSI_ARRAY];
+
+    //static int buffer_arr[WIND_SIZE];   // for adapt_bandpass_filter
+    //short int static i = 0;             //
     
     for(short int i = 0; i < 16; i++){
         if(param->scan_rst.ble_adv[i+6] == ble_addr[i]){
@@ -125,12 +138,22 @@ static void rssi_check_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *
 			param->scan_rst.bda[5],
 			param->scan_rst.rssi
             );
-            ESP_LOGI("TEST","PDU-lengh:%d",param->scan_rst.adv_data_len);
 
-            if(rssi_array_el_put(rssi_array, SIZE_RSSI_ARRAY, param->scan_rst.rssi) == 1){
-                rssi_mean = rssi_mean_calculate(rssi_array, SIZE_RSSI_ARRAY);
-                ESP_LOGI("TEST","RSSI_MEAN: %d", rssi_mean);
-            }
+            //ESP_LOGI("TEST", "DISTANCE: %lf", rssi_distance_calculate(param->scan_rst.rssi, -64.5, 2));
+
+            // Adaptive Band-Pass filter:
+            /*if(i < 5){
+                buffer_arr[i] = param->scan_rst.rssi;
+                i++;
+            }else if(i == 5){
+                init_buffer(buffer_arr, buffer_arr, WIND_SIZE);
+                i++;
+            }else{
+                ESP_LOGI("TEST", "%d", adapt_bandpass_filter(param->scan_rst.rssi, buffer_arr, WIND_SIZE, A, B));
+            }*/
+
+            // Kalman filter:
+            ESP_LOGI("TEST", "%d", (int)round(Kalman_filter(Q, R, P, INIT_RSSI, param->scan_rst.rssi)));
         }
     }else{
         ESP_LOGE("TEST","RSSI not read!");
@@ -139,8 +162,8 @@ static void rssi_check_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *
 
 void TaskRssiFadePwm(void *pvPatameters){
     while(1){
-        //rssi_fade_pwm_modes(0, &blink_pwm);
-        rssi_fade_pwm_onoff(0, &rssi_mean);
+        rssi_fade_pwm_modes(0, &rssi_filtered);
+        //rssi_fade_pwm_onoff(0, &rssi_filtered);
         vTaskDelay(10/portTICK_PERIOD_MS);
     }
 }
