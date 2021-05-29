@@ -1,35 +1,47 @@
 #include <stdio.h>
 #include <math.h>
-#include "Kalman.h"
 
 #define FILENAME1 "rssi_1m.txt"
 #define FILENAME1_5 "rssi_1_5m.txt"
 #define FILENAME2 "rssi_2m.txt"
+#define FILENAME_EX "rssi_experiment.txt"
+#define FILENAME_EX_BP "rssi_exp_bandpass.txt"
 #define RSSI_IDEAL1 -64.5
 #define RSSI_IDEAL1_5 -68
 #define RSSI_IDEAL2 -71
-#define RSSI_FILTERING_INIT -71           // equal 2 meters
-#define QKF 0.006967                      //
-#define RKF 94.666664                     // for Kalman_filter()
-#define PKF 21.333334                     //
+#define RSSI_FILTERING_INIT -71            // equal 2 meters
+#define QKF 0.006333                        //
+#define RKF 62                              // for Kalman_filter()
+#define PKF 25                              //
 
-struct coeff_finder_initial_params{
-    float Qmin = 0.0003;
-    float Rmin = 1;
-    float Pmin = 1;
-    float Qmax = 3;
-    float Rmax = 100;
-    float Pmax = 40;
-    float Qstep = 0.01;
-    float Rstep = 1;
-    float Pstep = 1;
-}init_params;
+typedef struct{
+    float Qmin;
+    float Rmin;
+    float Pmin;
+    float Qmax;
+    float Rmax;
+    float Pmax;
+    float Qstep;
+    float Rstep;
+    float Pstep;
+}coeff_finder_initial_params;
+coeff_finder_initial_params init_params = {
+    .Qmin = 0.1,
+    .Rmin = 1,
+    .Pmin = 1,
+    .Qmax = 5,
+    .Rmax = 120,
+    .Pmax = 50,
+    .Qstep = 0.01,
+    .Rstep = 1,
+    .Pstep = 1
+};
 
-struct opt_filter_params{
+typedef struct{
     float Q;
     float R;
     float P;
-};
+}opt_filter_params;
 
 ///////////////////////////////////////DECLARATION////////////////////////////////////////////
 
@@ -40,14 +52,15 @@ float variance_rssi(int *rssi_arr, int arr_size, float rssi_mean);
 void Kalman_coeff_finder(const char *filename, float rssi_ideal, int filtering_init_rssi, coeff_finder_initial_params *init_params, opt_filter_params *optparams);
 void Kalman_filter(const char *filename, int filtering_init_rssi, float Q, float R, float P);
 void Kalman_mean_coeff_finder(void);
+double Kalman(double process_noise, double sensor_noise, double estimated_error, double initial_value, double measurement);
 
 ///////////////////////////////////////////MAIN///////////////////////////////////////////////
 
 int main(){
-    opt_filter_params optparams_1m;
-    Kalman_coeff_finder(FILENAME1, RSSI_IDEAL1, RSSI_FILTERING_INIT, &init_params, &optparams_1m);
+    //opt_filter_params optparams_1m;
+    //Kalman_coeff_finder(FILENAME1, RSSI_IDEAL1, RSSI_FILTERING_INIT, &init_params, &optparams_1m);
     //Kalman_mean_coeff_finder();
-    //Kalman_filter(FILENAME1_5, RSSI_FILTERING_INIT, QKF, RKF, PKF);
+    Kalman_filter(FILENAME1_5, RSSI_FILTERING_INIT, QKF, RKF, PKF);
     return 0;
 }
 
@@ -111,8 +124,8 @@ void Kalman_coeff_finder(const char *filename, float rssi_ideal, int filtering_i
     float rssi_variance = variance_rssi(rssi_arr, arr_size, rssi_mean);
     float rssi_stdev = sqrt(rssi_variance);
 
-    float rssi_mean_abs_err = abs(rssi_ideal - rssi_mean);
-    float rssi_mean_rel_err = abs((rssi_mean_abs_err/rssi_ideal) * 100);
+    float rssi_mean_abs_err = fabs(rssi_ideal - rssi_mean);
+    float rssi_mean_rel_err = fabs((rssi_mean_abs_err/rssi_ideal) * 100);
 
     int filt_rssi_arr[arr_size];
     float filt_rssi_mean;
@@ -131,13 +144,14 @@ void Kalman_coeff_finder(const char *filename, float rssi_ideal, int filtering_i
     for(int i = 0; i <= (init_params->Pmax/init_params->Pstep) - (init_params->Pmin/init_params->Pstep); i++){
         for(int i = 0; i <= (init_params->Rmax/init_params->Rstep) - (init_params->Rmin/init_params->Rstep); i++){
             for(int i = 0; i <= (init_params->Qmax/init_params->Qstep) - (init_params->Qmin/init_params->Qstep); i++){
-                Kalman filter1(Q, R, P, filtering_init_rssi);
+                //Kalman filter1(Q, R, P, filtering_init_rssi);
                 for(int i = 0; i < arr_size; i++){
-                    filt_rssi_arr[i] = (int)round(filter1.getFilteredValue(rssi_arr[i]));
+                    //filt_rssi_arr[i] = (int)round(filter1.getFilteredValue(rssi_arr[i]));
+                    filt_rssi_arr[i] = (int)round(Kalman(Q, R, P, RSSI_FILTERING_INIT, rssi_arr[i]));
                 }
                 filt_rssi_mean = mean_rssi(filt_rssi_arr, arr_size);
                 filt_rssi_variance = variance_rssi(filt_rssi_arr, arr_size, filt_rssi_mean);
-                filt_rssi_mean_abs_err = abs(rssi_ideal - filt_rssi_mean);
+                filt_rssi_mean_abs_err = fabs(rssi_ideal - filt_rssi_mean);
                 //printf("M:%f, V:%f, E:%f\n", filt_rssi_mean, filt_rssi_variance, filt_rssi_mean_abs_err);
 
                 if(filt_rssi_variance < min_filt_rssi_variance && filt_rssi_mean_abs_err < min_filt_rssi_mean_abs_err){
@@ -178,7 +192,7 @@ void Kalman_coeff_finder(const char *filename, float rssi_ideal, int filtering_i
     printf("OPT_VARIANCE: %f\n", min_filt_rssi_variance);
     printf("OPT_STDEV: %f\n", sqrt(min_filt_rssi_variance));
     printf("OPT_MEAN_ABS_ERR: %f\n", min_filt_rssi_mean_abs_err);
-    printf("OPT_MEAN_REL_ERR: %f\n", abs((min_filt_rssi_mean_abs_err/rssi_ideal) * 100));
+    printf("OPT_MEAN_REL_ERR: %f\n", fabs((min_filt_rssi_mean_abs_err/rssi_ideal) * 100));
     printf("Q: %f\n", optparams->Q);
     printf("R: %f\n", optparams->R);
     printf("P: %f\n", optparams->P);
@@ -188,10 +202,11 @@ void Kalman_filter(const char *filename, int filtering_init_rssi, float Q, float
     int arr_size = count_row_file(filename);
     int rssi_arr[arr_size];
     read_num_to_arr(filename, rssi_arr, arr_size);
-    Kalman filter(Q, R, P, filtering_init_rssi);
+    //Kalman filter(Q, R, P, filtering_init_rssi);
 
     for(int i = 0; i < arr_size; i++){
-        printf("RSSI:%d\n", (int)round(filter.getFilteredValue(rssi_arr[i])));
+        //printf("%d\n", (int)round(filter.getFilteredValue(rssi_arr[i])));
+        printf("%d\n", (int)round(Kalman(Q, R, P, RSSI_FILTERING_INIT, rssi_arr[i])));
     }
 }
 
@@ -214,4 +229,45 @@ void Kalman_mean_coeff_finder(void){
     printf("Q_MEAN: %f\n", Qmean);
     printf("R_MEAN: %f\n", Rmean);
     printf("P_MEAN: %f\n", Pmean);
+}
+
+double Kalman(double process_noise, double sensor_noise, double estimated_error, double initial_value, double measurement){
+    /* The variables are x for the filtered value, q for the process noise, 
+         r for the sensor noise, p for the estimated error and k for the Kalman Gain. 
+         The state of the filter is defined by the values of these variables.
+         
+         The initial values for p is not very important since it is adjusted
+         during the process. It must be just high enough to narrow down.
+         The initial value for the readout is also not very important, since
+         it is updated during the process.
+         But tweaking the values for the process noise and sensor noise
+         is essential to get clear readouts.
+         
+         For large noise reduction, you can try to start from: (see http://interactive-matter.eu/blog/2009/12/18/filtering-sensor-data-with-a-kalman-filter/ )
+         q = 0.125
+         r = 32
+         p = 1023 //"large enough to narrow down"
+         e.g.
+         myVar = Kalman(0.125,32,1023,0);
+    */
+    double q = process_noise;
+    double r = sensor_noise;
+    double static p = 0; // estimated_error
+    double static x = 0; // initial_value
+    double k;            // Kalman gain
+    char static i = 0;
+
+    if(i == 0){
+        p = estimated_error + q;
+        k = p / (p + r);
+        x = initial_value + k * (measurement - initial_value);
+        p = (1 - k) * p;
+        i++;
+    }else{
+        p = p + q;
+        k = p / (p + r);
+        x = x + k * (measurement - x);
+        p = (1 - k) * p;
+    }
+    return x;
 }
